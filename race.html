@@ -196,21 +196,30 @@
 
 <script>
 // ═══════════════════════════════════════════════
-// CONFIGURATION — Edit these two values as needed
+// URL PARAMETERS (admin-only, not shown in UI)
+//
+//   ?start=<unix_seconds>   race start time (UTC unix timestamp in SECONDS)
+//                            get one at https://www.unixtimestamp.com/
+//   ?seed=<number>           randomness seed — roll dice and type the result
+//                            e.g. dice gave 3,1,4,1,5 → ?seed=31415
+//   ?stop=1                  hide the race and show a paused message
+//
+// Full example:
+//   race.html?start=1776531660&seed=31415
+//
+// Share the exact same URL with all viewers for a synchronised race.
 // ═══════════════════════════════════════════════
 
-// Race start time as a Unix timestamp in MILLISECONDS (UTC).
-// Everyone who opens this page uses their system clock, so
-// as long as their clocks are accurate the race is in sync.
-//
-// Current value: April 18, 2026 at 17:01:00 UTC
-// To get a new value: https://www.unixtimestamp.com/
-const RACE_START_MS = 1776531660000;
+const _p = new URLSearchParams(location.search);
+const STOPPED = _p.has('stop');
+
+// Race start: ?start=unix_seconds (SECONDS, not ms), fallback to hardcoded
+const RACE_START_MS = _p.has('start')
+  ? parseInt(_p.get('start'), 10) * 1000
+  : 1776531660000;
 
 // Race duration: 32 minutes
 const RACE_DURATION_S = 32 * 60;
-
-// ═══════════════════════════════════════════════
 
 const RUNNERS = [
   'محمد آل سعيد', 'علي امريبط',  'حيدر',      'عبادي',
@@ -239,7 +248,8 @@ function mulberry32(seed) {
   };
 }
 
-const SEED = 20260418;
+// Seed: ?seed=<number> from URL, fallback to 20260418
+const SEED = _p.has('seed') ? parseInt(_p.get('seed'), 10) : 20260418;
 const rand = mulberry32(SEED);
 const N = RUNNERS.length;
 
@@ -387,6 +397,15 @@ function formatTime(seconds) {
 let raceFinished = false;
 
 function update() {
+  // ── Race stopped by admin (?stop=1) ─────────
+  if (STOPPED) {
+    timerEl.className = 'countdown';
+    timerEl.textContent = '⏹';
+    statusEl.textContent = 'السباق أُوقف مؤقتاً';
+    document.getElementById('race-track').style.opacity = '0.15';
+    return;
+  }
+
   const now       = Date.now();
   const elapsedMs = now - RACE_START_MS;
   const elapsedS  = elapsedMs / 1000;
