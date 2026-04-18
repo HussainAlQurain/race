@@ -213,6 +213,9 @@
 const _p = new URLSearchParams(location.search);
 const STOPPED = _p.has('stop');
 
+// Strip params from the address bar so viewers can't see them
+history.replaceState(null, '', location.pathname);
+
 // Race start: ?start=unix_seconds (SECONDS, not ms), fallback to hardcoded
 const RACE_START_MS = _p.has('start')
   ? parseInt(_p.get('start'), 10) * 1000
