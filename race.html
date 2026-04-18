@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>سباق الفائز</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #080818;
+      color: #fff;
+      font-family: 'Segoe UI', Tahoma, Arial, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px 20px 30px;
+    }
+
+    h1 {
+      font-size: 1.8em;
+      color: #ffd700;
+      text-shadow: 0 0 24px rgba(255,215,0,0.55);
+      margin-bottom: 6px;
+      letter-spacing: 2px;
+    }
+
+    #timer {
+      font-size: 3.2em;
+      font-weight: bold;
+      font-family: 'Courier New', monospace;
+      color: #00ff88;
+      text-shadow: 0 0 16px rgba(0,255,136,0.5);
+      margin-bottom: 4px;
+      transition: color 0.5s;
+    }
+
+    #status-msg {
+      color: #aaa;
+      font-size: 1em;
+      margin-bottom: 14px;
+      letter-spacing: 1px;
+    }
+
+    #race-track {
+      width: 100%;
+      max-width: 960px;
+    }
+
+    .lane {
+      display: flex;
+      align-items: center;
+      margin-bottom: 7px;
+      background: rgba(255,255,255,0.04);
+      border-radius: 10px;
+      padding: 6px 10px;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+
+    .lane-num {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75em;
+      font-weight: bold;
+      flex-shrink: 0;
+      color: #000;
+      margin-left: 8px; /* RTL: left side */
+    }
+
+    .runner-name {
+      width: 130px;
+      font-size: 0.92em;
+      text-align: right;
+      flex-shrink: 0;
+      color: #e0e0e0;
+      white-space: nowrap;
+    }
+
+    .track-outer {
+      flex: 1;
+      height: 32px;
+      background: #111128;
+      border-radius: 16px;
+      margin: 0 10px;
+      position: relative;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+
+    /* checkered finish line stripe */
+    .finish-line {
+      position: absolute;
+      right: 2px;
+      top: 0; bottom: 0;
+      width: 6px;
+      background: repeating-linear-gradient(
+        180deg,
+        #fff 0px, #fff 5px,
+        #000 5px, #000 10px
+      );
+      opacity: 0.6;
+      border-radius: 3px;
+      z-index: 1;
+    }
+
+    .runner-dot {
+      position: absolute;
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      top: 50%;
+      transform: translate(0, -50%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 15px;
+      left: 1px;
+      z-index: 2;
+    }
+
+    /* Rank badge on right of lane */
+    .rank-badge {
+      width: 34px;
+      text-align: center;
+      font-size: 0.85em;
+      color: #aaa;
+      flex-shrink: 0;
+    }
+
+    /* Winner highlight */
+    .lane.winner {
+      background: rgba(255,215,0,0.1);
+      border-color: rgba(255,215,0,0.4);
+      animation: winnerglow 1.2s infinite alternate;
+    }
+
+    @keyframes winnerglow {
+      from { box-shadow: 0 0 6px rgba(255,215,0,0.2); }
+      to   { box-shadow: 0 0 20px rgba(255,215,0,0.7); }
+    }
+
+    /* Winner banner */
+    #winner-banner {
+      display: none;
+      margin-top: 24px;
+      text-align: center;
+      animation: popIn 0.7s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+    }
+
+    @keyframes popIn {
+      from { opacity: 0; transform: scale(0.4); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+
+    #winner-banner .trophy-line {
+      font-size: 3.5em;
+      line-height: 1;
+    }
+
+    #winner-banner .winner-label {
+      font-size: 1.3em;
+      color: #aaa;
+      margin: 4px 0;
+    }
+
+    #winner-name {
+      font-size: 2.8em;
+      font-weight: bold;
+      color: #ffd700;
+      text-shadow: 0 0 30px rgba(255,215,0,0.8);
+      margin-top: 4px;
+    }
+
+    /* countdown "not started" style */
+    #timer.countdown { color: #ff6b6b; text-shadow: 0 0 16px rgba(255,107,107,0.4); }
+    #timer.running   { color: #00ff88; text-shadow: 0 0 16px rgba(0,255,136,0.4); }
+    #timer.done      { color: #ffd700; text-shadow: 0 0 16px rgba(255,215,0,0.5); }
+  </style>
+</head>
+<body>
+
+<h1>🏁 سباق الفائز 🏁</h1>
+<div id="timer" class="countdown">--:--</div>
+<div id="status-msg">جارٍ التحميل...</div>
+<div id="race-track"></div>
+<div id="winner-banner">
+  <div class="trophy-line">🏆</div>
+  <div class="winner-label">الفائز</div>
+  <div id="winner-name"></div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+// CONFIGURATION — Edit these two values as needed
+// ═══════════════════════════════════════════════
+
+// Race start time as a Unix timestamp in MILLISECONDS (UTC).
+// Everyone who opens this page uses their system clock, so
+// as long as their clocks are accurate the race is in sync.
+//
+// Current value: April 18, 2026 at 17:01:00 UTC
+// To get a new value: https://www.unixtimestamp.com/
+const RACE_START_MS = 1776531660000;
+
+// Race duration: 32 minutes
+const RACE_DURATION_S = 32 * 60;
+
+// ═══════════════════════════════════════════════
+
+const RUNNERS = [
+  'محمد آل سعيد', 'علي امريبط',  'حيدر',      'عبادي',
+  'علي محمد',     'رضا امريبط',  'سيد كريم',  'حسن عسيف',
+  'حسن علي',      'جواد',        'حسين علي',  'رضا قرين',
+  'علي ماجد',     'سيد رضا'
+];
+
+const COLORS = [
+  '#FF6B6B','#4ECDC4','#45B7D1','#96CEB4',
+  '#FFEAA7','#DDA0DD','#98D8C8','#F7DC6F',
+  '#BB8FCE','#82E0AA','#F1948A','#85C1E9',
+  '#F8C471','#A9CCE3'
+];
+
+// ────────────────────────────────────────────────
+// Seeded PRNG (mulberry32) — deterministic, no backend
+// ────────────────────────────────────────────────
+function mulberry32(seed) {
+  let s = seed >>> 0;
+  return function () {
+    s += 0x6D2B79F5;
+    let t = Math.imul(s ^ (s >>> 15), s | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+const SEED = 20260418;
+const rand = mulberry32(SEED);
+const N = RUNNERS.length;
+
+// ────────────────────────────────────────────────
+// Determine the finish order using the seed
+// ────────────────────────────────────────────────
+const finishOrder = Array.from({ length: N }, (_, i) => i);
+for (let i = N - 1; i > 0; i--) {
+  const j = Math.floor(rand() * (i + 1));
+  [finishOrder[i], finishOrder[j]] = [finishOrder[j], finishOrder[i]];
+}
+// finishOrder[0] = winner index, [1] = 2nd place, etc.
+
+// Final position (0..1) per runner at race end
+// Winner = 1.000, rest spread tightly behind
+const finalPos = new Array(N);
+finalPos[finishOrder[0]] = 1.000;
+for (let place = 1; place < N; place++) {
+  // 2nd place ≈ 0.997, last place ≈ 0.970
+  finalPos[finishOrder[place]] = 0.997 - (place - 1) * (0.027 / (N - 2));
+}
+
+// ────────────────────────────────────────────────
+// Noise parameters: each runner has unique wave combos
+// ────────────────────────────────────────────────
+const noiseWaves = RUNNERS.map(() => {
+  const waves = [];
+  for (let w = 0; w < 7; w++) {
+    waves.push({
+      freq:  0.25 + rand() * 2.8,   // oscillations per minute of race time
+      phase: rand() * Math.PI * 2,
+      amp:   0.35 + rand() * 0.65
+    });
+  }
+  return waves;
+});
+
+// Compute position of runner `idx` at elapsed time `t` (seconds)
+// Returns a value in [0, ~1]; clamped visually to 0.97 during race
+// so runners don't appear to cross the finish line prematurely.
+function getPosition(idx, t) {
+  if (t <= 0) return 0;
+  if (t >= RACE_DURATION_S) return finalPos[idx];
+
+  const tNorm = t / RACE_DURATION_S;
+
+  // Linear component: converges to finalPos
+  const linear = finalPos[idx] * tNorm;
+
+  // Envelope: smooth bell that is 0 at both ends, peaks mid-race.
+  // Using sin^0.5 gives a wider peak so overtaking happens all race long,
+  // but it shrinks in the last ~10% so the true result emerges cleanly.
+  const envelope = Math.pow(Math.sin(Math.PI * tNorm), 0.55) * 0.11;
+
+  // Composite noise from wave superposition
+  const waves = noiseWaves[idx];
+  let noise = 0, totalAmp = 0;
+  for (const w of waves) {
+    noise += Math.sin(w.freq * tNorm * Math.PI * 2 * 16 + w.phase) * w.amp;
+    totalAmp += w.amp;
+  }
+  noise /= totalAmp; // normalize to [-1, 1]
+
+  const pos = linear + envelope * noise;
+
+  // Clamp during race: no one crosses the finish visually until time is up
+  return Math.max(0, Math.min(0.97, pos));
+}
+
+// ────────────────────────────────────────────────
+// Build DOM
+// ────────────────────────────────────────────────
+const trackEl   = document.getElementById('race-track');
+const timerEl   = document.getElementById('timer');
+const statusEl  = document.getElementById('status-msg');
+const bannerEl  = document.getElementById('winner-banner');
+const winnerNameEl = document.getElementById('winner-name');
+
+const dots      = [];   // runner dot elements
+const rankBadges = [];  // rank badge elements per lane
+const laneEls   = [];
+
+RUNNERS.forEach((name, i) => {
+  const lane = document.createElement('div');
+  lane.className = 'lane';
+
+  const laneNum = document.createElement('div');
+  laneNum.className = 'lane-num';
+  laneNum.style.background = COLORS[i];
+  laneNum.textContent = i + 1;
+
+  const nameDiv = document.createElement('div');
+  nameDiv.className = 'runner-name';
+  nameDiv.textContent = name;
+
+  const trackOuter = document.createElement('div');
+  trackOuter.className = 'track-outer';
+
+  const finishLine = document.createElement('div');
+  finishLine.className = 'finish-line';
+  trackOuter.appendChild(finishLine);
+
+  const dot = document.createElement('div');
+  dot.className = 'runner-dot';
+  dot.style.background = COLORS[i];
+  dot.style.boxShadow = `0 0 10px ${COLORS[i]}88`;
+  dot.textContent = '🏃';
+  trackOuter.appendChild(dot);
+  dots.push(dot);
+
+  const rankBadge = document.createElement('div');
+  rankBadge.className = 'rank-badge';
+  rankBadges.push(rankBadge);
+
+  lane.appendChild(rankBadge);
+  lane.appendChild(laneNum);
+  lane.appendChild(nameDiv);
+  lane.appendChild(trackOuter);
+  trackEl.appendChild(lane);
+  laneEls.push(lane);
+});
+
+// ────────────────────────────────────────────────
+// Rank display helpers
+// ────────────────────────────────────────────────
+const rankSymbols = ['🥇','🥈','🥉'];
+function updateRanks(positions) {
+  const ranked = positions
+    .map((p, i) => ({ i, p }))
+    .sort((a, b) => b.p - a.p);
+  ranked.forEach(({ i }, rank) => {
+    rankBadges[i].textContent = rank < 3 ? rankSymbols[rank] : (rank + 1);
+  });
+}
+
+function formatTime(seconds) {
+  const m = Math.floor(Math.abs(seconds) / 60);
+  const s = Math.floor(Math.abs(seconds) % 60);
+  return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+// ────────────────────────────────────────────────
+// Animation loop
+// ────────────────────────────────────────────────
+let raceFinished = false;
+
+function update() {
+  const now       = Date.now();
+  const elapsedMs = now - RACE_START_MS;
+  const elapsedS  = elapsedMs / 1000;
+
+  // ── Not started yet ──────────────────────────
+  if (elapsedS < 0) {
+    timerEl.className = 'countdown';
+    timerEl.textContent = '-' + formatTime(-elapsedS);
+    statusEl.textContent = 'السباق يبدأ قريباً...';
+    requestAnimationFrame(update);
+    return;
+  }
+
+  // ── Race over ────────────────────────────────
+  if (elapsedS >= RACE_DURATION_S) {
+    if (!raceFinished) {
+      raceFinished = true;
+      timerEl.className = 'done';
+      timerEl.textContent = '32:00';
+      statusEl.textContent = 'انتهى السباق!';
+
+      // Snap all runners to final positions
+      const positions = [];
+      dots.forEach((dot, i) => {
+        const trackWidth = dot.parentElement.clientWidth - dot.offsetWidth - 2;
+        dot.style.left = (finalPos[i] * trackWidth) + 'px';
+        positions.push(finalPos[i]);
+      });
+
+      updateRanks(positions);
+
+      // Highlight winner lane
+      const winnerIdx = finishOrder[0];
+      laneEls[winnerIdx].classList.add('winner');
+
+      // Show winner banner
+      bannerEl.style.display = 'block';
+      winnerNameEl.textContent = RUNNERS[winnerIdx];
+    }
+    return; // stop the loop
+  }
+
+  // ── Race in progress ─────────────────────────
+  timerEl.className = 'running';
+  timerEl.textContent = formatTime(elapsedS);
+  statusEl.textContent = 'السباق جارٍ...';
+
+  const positions = [];
+  dots.forEach((dot, i) => {
+    const pos = getPosition(i, elapsedS);
+    positions.push(pos);
+    const trackWidth = dot.parentElement.clientWidth - dot.offsetWidth - 2;
+    dot.style.left = (pos * trackWidth) + 'px';
+  });
+
+  updateRanks(positions);
+
+  requestAnimationFrame(update);
+}
+
+update();
+</script>
+</body>
+</html>
